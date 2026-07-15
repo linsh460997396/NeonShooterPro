@@ -184,14 +184,18 @@ namespace NeonShooter
 
         public void Draw()
         {
+            if (BatchRenderer.Instance == null) return;
+
             screenSize = GameManager.ScreenSize;
 
             int width = points.GetLength(0);
             int height = points.GetLength(1);
             Color color = new Color(30 / 255f, 30 / 255f, 139 / 255f, 85 / 255f);
 
-            GUI.color = color;
             Texture2D pixel = GameManager.Instance != null ? GameManager.Instance.PixelTexture : null;
+            if (pixel == null) return;
+
+            var br = BatchRenderer.Instance;
 
             for (int y = 1; y < height; y++)
             {
@@ -209,11 +213,11 @@ namespace NeonShooter
 
                         if (Vector2.SqrMagnitude(mid - (left + p) / 2) > 1)
                         {
-                            DrawLine(left, mid, thickness);
-                            DrawLine(mid, p, thickness);
+                            br.DrawLine(pixel, left, mid, color, thickness);
+                            br.DrawLine(pixel, mid, p, color, thickness);
                         }
                         else
-                            DrawLine(left, p, thickness);
+                            br.DrawLine(pixel, left, p, color, thickness);
                     }
                     if (y > 1)
                     {
@@ -224,39 +228,21 @@ namespace NeonShooter
 
                         if (Vector2.SqrMagnitude(mid - (up + p) / 2) > 1)
                         {
-                            DrawLine(up, mid, thickness);
-                            DrawLine(mid, p, thickness);
+                            br.DrawLine(pixel, up, mid, color, thickness);
+                            br.DrawLine(pixel, mid, p, color, thickness);
                         }
                         else
-                            DrawLine(up, p, thickness);
+                            br.DrawLine(pixel, up, p, color, thickness);
                     }
 
                     if (x > 1 && y > 1)
                     {
                         Vector2 upLeft = ToVec2(points[x - 1, y - 1].Position);
-                        DrawLine(0.5f * (upLeft + up), 0.5f * (left + p), 1f);
-                        DrawLine(0.5f * (upLeft + left), 0.5f * (up + p), 1f);
+                        br.DrawLine(pixel, 0.5f * (upLeft + up), 0.5f * (left + p), color, 1f);
+                        br.DrawLine(pixel, 0.5f * (upLeft + left), 0.5f * (up + p), color, 1f);
                     }
                 }
             }
-
-            GUI.color = Color.white;
-        }
-
-        private void DrawLine(Vector2 start, Vector2 end, float thickness = 2f)
-        {
-            Vector2 delta = end - start;
-            float angle = delta.ToAngle();
-            float length = delta.magnitude;
-
-            Texture2D pixel = GameManager.Instance != null ? GameManager.Instance.PixelTexture : null;
-            if (pixel == null) return;
-
-            GUIUtility.RotateAroundPivot(angle * Mathf.Rad2Deg, start);
-
-            GUI.DrawTexture(new Rect(start.x, start.y - thickness / 2, length, thickness), pixel);
-
-            GUIUtility.RotateAroundPivot(-angle * Mathf.Rad2Deg, start);
         }
 
         public Vector2 ToVec2(Vector3 v)

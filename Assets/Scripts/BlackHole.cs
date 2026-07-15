@@ -97,15 +97,12 @@ namespace NeonShooter
 
         public override void Draw()
         {
+            if (BatchRenderer.Instance == null || image == null) return;
+
             float scale = 1 + 0.1f * (float)Mathf.Sin(10 * GameManager.TotalTime);
-
-            GUIUtility.RotateAroundPivot(Orientation * Mathf.Rad2Deg, Position);
-
-            GUI.color = color;
-            GUI.DrawTexture(new Rect(Position.x - Size.x * scale / 2, Position.y - Size.y * scale / 2, image.width * scale, image.height * scale), image);
-
-            GUIUtility.RotateAroundPivot(-Orientation * Mathf.Rad2Deg, Position);
-            GUI.color = Color.white;
+            // 原点为未缩放的纹理中心,BatchRenderer内部会乘以scale
+            Vector2 origin = new Vector2(image.width * 0.5f, image.height * 0.5f);
+            BatchRenderer.Instance.Draw(image, Position, origin, Orientation, new Vector2(scale, scale), color);
         }
     }
 }

@@ -45,21 +45,17 @@ namespace NeonShooter
 
         public void Draw()
         {
+            var br = BatchRenderer.Instance;
+            if (br == null) return;
+
             for (int i = 0; i < particleList.Count; i++)
             {
                 var particle = particleList[i];
+                if (particle.Texture == null) continue;
 
-                Vector2 origin = new Vector2(particle.Texture.width / 2, particle.Texture.height / 2);
-
-                GUIUtility.RotateAroundPivot(particle.Orientation * Mathf.Rad2Deg, particle.Position);
-
-                GUI.color = particle.Tint;
-                GUI.DrawTexture(new Rect(particle.Position.x - origin.x * particle.Scale.x, particle.Position.y - origin.y * particle.Scale.y,
-                    particle.Texture.width * particle.Scale.x, particle.Texture.height * particle.Scale.y), particle.Texture);
-
-                GUIUtility.RotateAroundPivot(-particle.Orientation * Mathf.Rad2Deg, particle.Position);
+                Vector2 origin = new Vector2(particle.Texture.width * 0.5f, particle.Texture.height * 0.5f);
+                br.Draw(particle.Texture, particle.Position, origin, particle.Orientation, particle.Scale, particle.Tint);
             }
-            GUI.color = Color.white;
         }
 
         public void CreateParticle(Texture2D texture, Vector2 position, Color tint, float duration, float scale, T state, float theta = 0)

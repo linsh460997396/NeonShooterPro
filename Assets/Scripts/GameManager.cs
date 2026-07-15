@@ -43,6 +43,11 @@ namespace NeonShooter
                 DontDestroyOnLoad(cameraObj);
             }
 
+            // BatchRenderer必须挂在Camera所在GameObject上,
+            // 这样Unity的OnPostRender()魔法方法才会被调用
+            if (mainCamera.GetComponent<BatchRenderer>() == null)
+                mainCamera.gameObject.AddComponent<BatchRenderer>();
+
             mainCamera.clearFlags = CameraClearFlags.SolidColor;
             mainCamera.backgroundColor = Color.black;
             mainCamera.orthographic = true;
