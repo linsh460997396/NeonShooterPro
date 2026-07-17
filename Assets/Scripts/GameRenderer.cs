@@ -8,6 +8,11 @@ namespace NeonShooter
 
         public Font gameFont;
 
+        private const int frameHistorySize = 60;
+        private float[] frameTimes = new float[frameHistorySize];
+        private int frameIndex;
+        private float fps;
+
         void Awake()
         {
             if (Instance != null && Instance != this)
@@ -28,6 +33,14 @@ namespace NeonShooter
         // 这样避免OnGUI每帧多次调用导致的重复绘制。
         void LateUpdate()
         {
+            frameTimes[frameIndex] = Time.deltaTime;
+            frameIndex = (frameIndex + 1) % frameHistorySize;
+
+            float totalTime = 0;
+            for (int i = 0; i < frameHistorySize; i++)
+                totalTime += frameTimes[i];
+            fps = frameHistorySize / totalTime;
+
             if (GameManager.Grid != null)
                 GameManager.Grid.Draw();
             EntityManager.Draw();
@@ -56,6 +69,9 @@ namespace NeonShooter
             GUI.skin.font = gameFont;
             GUI.skin.label.normal.textColor = Color.white;
 
+            string fpsText = "FPS: " + Mathf.RoundToInt(fps);
+            float fpsWidth = gameFont.fontSize * fpsText.Length * 0.6f;
+            GUI.Label(new Rect(Screen.width / 2 - fpsWidth / 2, 5, fpsWidth, 30), fpsText);
             GUI.Label(new Rect(5, 5, 200, 30), "Lives: " + PlayerStatus.Lives);
 
             string scoreText = "Score: " + PlayerStatus.Score;

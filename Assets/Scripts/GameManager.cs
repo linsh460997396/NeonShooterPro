@@ -86,7 +86,7 @@ namespace NeonShooter
         {
             ParticleManager = new ParticleManager<ParticleState>(1024 * 20, ParticleState.UpdateParticle);
 
-            const int maxGridPoints = 1600;
+            const int maxGridPoints = 400;
             float spacing = (float)Math.Sqrt(Screen.width * Screen.height / maxGridPoints);
             Vector2 gridSpacing = new Vector2(spacing, spacing);
             Grid = new Grid(new Rect(0, 0, Screen.width, Screen.height), gridSpacing);

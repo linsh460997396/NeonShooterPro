@@ -16,13 +16,17 @@ namespace NeonShooter
             Radius = 8;
         }
 
+        private static int frameCounter;
+
         public override void Update()
         {
             if (Velocity.sqrMagnitude > 0)
                 Orientation = Velocity.ToAngle();
 
             Position += Velocity;
-            GameManager.Grid.ApplyExplosiveForce(0.5f * Velocity.magnitude, Position, 80);
+
+            if (frameCounter++ % 3 == 0)
+                GameManager.Grid.ApplyExplosiveForce(0.5f * Velocity.magnitude, Position, 80);
 
             if (!IsInViewport(Position))
             {

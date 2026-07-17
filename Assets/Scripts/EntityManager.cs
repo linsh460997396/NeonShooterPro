@@ -1,23 +1,41 @@
 ﻿using UnityEngine;
 using System.Collections.Generic;
-using System.Linq;
 
 namespace NeonShooter
 {
     public static class EntityManager
     {
-        static List<Entity> entities = new List<Entity>();
-        static List<Enemy> enemies = new List<Enemy>();
-        static List<Bullet> bullets = new List<Bullet>();
-        static List<BlackHole> blackHoles = new List<BlackHole>();
+        private const int InitialCapacity = 200;
+        private const float HashCellSize = 100f;
 
-        public static IEnumerable<BlackHole> BlackHoles { get { return blackHoles; } }
+        private static Entity[] entities = new Entity[InitialCapacity];
+        private static int entityCount;
 
-        static bool isUpdating;
-        static List<Entity> addedEntities = new List<Entity>();
+        private static Enemy[] enemies = new Enemy[InitialCapacity];
+        private static int enemyCount;
 
-        public static int Count { get { return entities.Count; } }
-        public static int BlackHoleCount { get { return blackHoles.Count; } }
+        private static Bullet[] bullets = new Bullet[InitialCapacity];
+        private static int bulletCount;
+
+        private static BlackHole[] blackHoles = new BlackHole[InitialCapacity];
+        private static int blackHoleCount;
+
+        private static SpatialHash spatialHash = new SpatialHash(HashCellSize);
+
+        private static bool isUpdating;
+        private static List<Entity> addedEntities = new List<Entity>();
+
+        public static int Count { get { return entityCount; } }
+        public static int BlackHoleCount { get { return blackHoleCount; } }
+
+        public static IEnumerable<BlackHole> BlackHoles
+        {
+            get
+            {
+                for (int i = 0; i < blackHoleCount; i++)
+                    yield return blackHoles[i];
+            }
+        }
 
         public static void Add(Entity entity)
         {
@@ -29,83 +47,153 @@ namespace NeonShooter
 
         private static void AddEntity(Entity entity)
         {
-            entities.Add(entity);
+            if (entityCount >= entities.Length)
+                System.Array.Resize(ref entities, entities.Length * 2);
+            entities[entityCount++] = entity;
+
             if (entity is Bullet)
-                bullets.Add(entity as Bullet);
+            {
+                if (bulletCount >= bullets.Length)
+                    System.Array.Resize(ref bullets, bullets.Length * 2);
+                bullets[bulletCount++] = (Bullet)entity;
+            }
             else if (entity is Enemy)
-                enemies.Add(entity as Enemy);
+            {
+                if (enemyCount >= enemies.Length)
+                    System.Array.Resize(ref enemies, enemies.Length * 2);
+                enemies[enemyCount++] = (Enemy)entity;
+            }
             else if (entity is BlackHole)
-                blackHoles.Add(entity as BlackHole);
+            {
+                if (blackHoleCount >= blackHoles.Length)
+                    System.Array.Resize(ref blackHoles, blackHoles.Length * 2);
+                blackHoles[blackHoleCount++] = (BlackHole)entity;
+            }
         }
 
         public static void Update()
         {
             isUpdating = true;
+
+            spatialHash.Clear();
+            for (int i = 0; i < entityCount; i++)
+                spatialHash.Insert(entities[i]);
+
             HandleCollisions();
 
-            foreach (var entity in entities)
-                entity.Update();
+            for (int i = 0; i < entityCount; i++)
+                entities[i].Update();
 
             isUpdating = false;
 
-            foreach (var entity in addedEntities)
-                AddEntity(entity);
-
+            for (int i = 0; i < addedEntities.Count; i++)
+                AddEntity(addedEntities[i]);
             addedEntities.Clear();
 
-            entities = entities.Where(x => !x.IsExpired).ToList();
-            bullets = bullets.Where(x => !x.IsExpired).ToList();
-            enemies = enemies.Where(x => !x.IsExpired).ToList();
-            blackHoles = blackHoles.Where(x => !x.IsExpired).ToList();
+            CompactArrays();
         }
 
-        static void HandleCollisions()
+        private static void CompactArrays()
         {
-            for (int i = 0; i < enemies.Count; i++)
-                for (int j = i + 1; j < enemies.Count; j++)
-                {
-                    if (IsColliding(enemies[i], enemies[j]))
-                    {
-                        enemies[i].HandleCollision(enemies[j]);
-                        enemies[j].HandleCollision(enemies[i]);
-                    }
-                }
+            int newCount = 0;
+            int newEnemyCount = 0;
+            int newBulletCount = 0;
+            int newBlackHoleCount = 0;
 
-            for (int i = 0; i < enemies.Count; i++)
-                for (int j = 0; j < bullets.Count; j++)
-                {
-                    if (IsColliding(enemies[i], bullets[j]))
-                    {
-                        enemies[i].WasShot();
-                        bullets[j].IsExpired = true;
-                    }
-                }
-
-            for (int i = 0; i < enemies.Count; i++)
+            for (int i = 0; i < entityCount; i++)
             {
-                if (enemies[i].IsActive && IsColliding(PlayerShip.Instance, enemies[i]))
+                if (!entities[i].IsExpired)
+                {
+                    entities[newCount] = entities[i];
+
+                    if (entities[i] is Enemy)
+                        enemies[newEnemyCount++] = (Enemy)entities[i];
+                    else if (entities[i] is Bullet)
+                        bullets[newBulletCount++] = (Bullet)entities[i];
+                    else if (entities[i] is BlackHole)
+                        blackHoles[newBlackHoleCount++] = (BlackHole)entities[i];
+
+                    newCount++;
+                }
+            }
+
+            entityCount = newCount;
+            enemyCount = newEnemyCount;
+            bulletCount = newBulletCount;
+            blackHoleCount = newBlackHoleCount;
+        }
+
+        private static void HandleCollisions()
+        {
+            for (int i = 0; i < enemyCount; i++)
+            {
+                var enemy = enemies[i];
+                if (enemy.IsExpired) continue;
+
+                foreach (var nearby in spatialHash.QueryNearby(enemy))
+                {
+                    if (nearby is Enemy otherEnemy)
+                    {
+                        if (!otherEnemy.IsExpired && IsColliding(enemy, otherEnemy))
+                        {
+                            enemy.HandleCollision(otherEnemy);
+                            otherEnemy.HandleCollision(enemy);
+                        }
+                    }
+                }
+            }
+
+            for (int i = 0; i < enemyCount; i++)
+            {
+                var enemy = enemies[i];
+                if (enemy.IsExpired || !enemy.IsActive) continue;
+
+                foreach (var nearby in spatialHash.QueryNearby(enemy))
+                {
+                    if (nearby is Bullet bullet)
+                    {
+                        if (!bullet.IsExpired && IsColliding(enemy, bullet))
+                        {
+                            enemy.WasShot();
+                            bullet.IsExpired = true;
+                        }
+                    }
+                }
+            }
+
+            for (int i = 0; i < enemyCount; i++)
+            {
+                var enemy = enemies[i];
+                if (enemy.IsActive && !enemy.IsExpired && IsColliding(PlayerShip.Instance, enemy))
                 {
                     KillPlayer();
                     break;
                 }
             }
 
-            for (int i = 0; i < blackHoles.Count; i++)
+            for (int i = 0; i < blackHoleCount; i++)
             {
-                for (int j = 0; j < enemies.Count; j++)
-                    if (enemies[j].IsActive && IsColliding(blackHoles[i], enemies[j]))
-                        enemies[j].WasShot();
+                var blackHole = blackHoles[i];
+                if (blackHole.IsExpired) continue;
 
-                for (int j = 0; j < bullets.Count; j++)
+                foreach (var nearby in spatialHash.QueryNearby(blackHole))
                 {
-                    if (IsColliding(blackHoles[i], bullets[j]))
+                    if (nearby is Enemy enemy)
                     {
-                        bullets[j].IsExpired = true;
-                        blackHoles[i].WasShot();
+                        if (enemy.IsActive && !enemy.IsExpired && IsColliding(blackHole, enemy))
+                            enemy.WasShot();
+                    }
+                    else if (nearby is Bullet bullet)
+                    {
+                        if (!bullet.IsExpired && IsColliding(blackHole, bullet))
+                        {
+                            bullet.IsExpired = true;
+                            blackHole.WasShot();
+                        }
                     }
                 }
 
-                if (IsColliding(PlayerShip.Instance, blackHoles[i]))
+                if (IsColliding(PlayerShip.Instance, blackHole))
                 {
                     KillPlayer();
                     break;
@@ -116,8 +204,10 @@ namespace NeonShooter
         private static void KillPlayer()
         {
             PlayerShip.Instance.Kill();
-            enemies.ForEach(x => x.WasShot());
-            blackHoles.ForEach(x => x.Kill());
+            for (int i = 0; i < enemyCount; i++)
+                enemies[i].WasShot();
+            for (int i = 0; i < blackHoleCount; i++)
+                blackHoles[i].Kill();
             EnemySpawner.Reset();
         }
 
@@ -129,13 +219,31 @@ namespace NeonShooter
 
         public static IEnumerable<Entity> GetNearbyEntities(Vector2 position, float radius)
         {
-            return entities.Where(x => Vector2.SqrMagnitude(position - x.Position) < radius * radius);
+            HashSet<Entity> results = new HashSet<Entity>();
+            float minX = position.x - radius;
+            float maxX = position.x + radius;
+            float minY = position.y - radius;
+            float maxY = position.y + radius;
+
+            for (int i = 0; i < entityCount; i++)
+            {
+                var entity = entities[i];
+                if (!entity.IsExpired &&
+                    entity.Position.x >= minX && entity.Position.x <= maxX &&
+                    entity.Position.y >= minY && entity.Position.y <= maxY &&
+                    Vector2.SqrMagnitude(position - entity.Position) < radius * radius)
+                {
+                    results.Add(entity);
+                }
+            }
+
+            return results;
         }
 
         public static void Draw()
         {
-            foreach (var entity in entities)
-                entity.Draw();
+            for (int i = 0; i < entityCount; i++)
+                entities[i].Draw();
         }
     }
 }
